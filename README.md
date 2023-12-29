@@ -5,6 +5,11 @@ Usage:
 video-split-scenes [--duration $d] [--pix_th $pix_th] [--pic_th $pic_th] $file
 ```
 
+If the output contains scenes that should be merged:
+```sh
+video-split-scenes [--duration $d] [--pix_th $pix_th] [--pic_th $pic_th] [--merge $merge_scenes] $file
+```
+
 Get help:
 ```sh
 video-split-scenes -h
