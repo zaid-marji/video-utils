@@ -14,8 +14,9 @@ show_help() {
     echo "  -h, --help      Show this help message and exit."
     echo "  -s              Specify target size in MB."
     echo "  -b              Specify target bitrate in Kb/s."
-    echo "  -c              Specify codec to use (e.g., libx264, libx265)."
-    echo "                  If omitted, defaults to the same codec as the input or libx265."
+    echo "  -c              Specify codec to use (Options: libx264 (h264), libx265 (hevc), libsvtav1 (av1))."
+    echo "                  If omitted, defaults to the same codec as the input or libx265 if codec is not supported."
+    echo "                  Automatically upgrades to GPU-accelerated codec if available."
     echo "  -m              Specify encoding mode (cbr or vbr). Default is vbr."
     echo "  -r              Specify rate mode (average or maxrate). Default is average."
     echo "  -height         Specify the height of the output video. Width is adjusted to maintain aspect ratio."
@@ -104,10 +105,25 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# Check for Nvidia GPU and set encoder hardware acceleration if available and not CPU only
-HWACCEL=""
+# Check for Nvidia GPU
+NVIDIA_GPU=false
+NVIDIA_RTX_40_OR_NEWER=false
+if nvidia-smi -L > /dev/null 2>&1; then
+    NVIDIA_GPU=true
+    # Check for RTX 40 series or later
+    if nvidia-smi -L | grep -E 'RTX [4-9][0-9][0-9][0-9]' > /dev/null 2>&1; then
+        NVIDIA_RTX_40_OR_NEWER=true
+    fi
+fi
+
+# Set HWACCEL based on codec and GPU type
+HWACCEL=false
 if [ "$CPU_ONLY" = false ]; then
-    if nvidia-smi -L > /dev/null 2>&1; then
+    if [[ "$CODEC" =~ ^(libsvtav1|av1)$ ]]; then
+        if [ "$NVIDIA_RTX_40_OR_NEWER" = true ]; then
+            HWACCEL=true
+        fi
+    elif [ "$NVIDIA_GPU" = true ]; then
         HWACCEL=true
     fi
 fi
@@ -126,7 +142,7 @@ if [ -z "$CODEC" ]; then
 fi
 
 # Check if the codec is supported; if not, fallback to libx265
-if ! [[ "$CODEC" =~ ^(libx264|libx265|h264|hevc)$ ]]; then
+if ! [[ "$CODEC" =~ ^(libx264|libx265|h264|hevc|libsvtav1|av1)$ ]]; then
     echo "Unsupported or unknown codec: $CODEC. Falling back to default codec libx265."
     CODEC="libx265"
 fi
@@ -136,6 +152,7 @@ if [ "$HWACCEL" = true ]; then
     case "$CODEC" in
         libx264 | h264 ) CODEC="h264_nvenc";;
         libx265 | hevc ) CODEC="hevc_nvenc";;
+        libsvtav1 | av1 ) CODEC="av1_nvenc";;
     esac
 fi
 
@@ -156,6 +173,11 @@ if [[ "$CODEC" =~ ^(h264_nvenc|hevc_nvenc)$ ]]; then
     # NVENC encoder presets
     NVENC_PRESET="p7"  # You can change this to p1 (fastest) to p7 (best quality)
     ENCODE_SETTINGS="-c:v $CODEC -preset $NVENC_PRESET"
+elif [[ "$CODEC" =~ ^(libsvtav1|av1)$ ]]; then
+    # Preset for AV1 using libsvtav1
+    AV1_PRESET="2"  # You can change this to 0 (best quality) to 12 (fastest)
+    ENCODE_SETTINGS="-c:v libsvtav1 -preset $AV1_PRESET"
+    RATE_MODE="maxrate"  # libsvtav1 requires maxrate to be set
 else
     # Preset for software-based encoders
     SOFTWARE_PRESET="slower"
