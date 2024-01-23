@@ -3,6 +3,7 @@
 # Default values
 default_bitrate_threshold=9200  # in kbps
 default_percentage=2  # top 2%
+default_file_size_threshold=600  # in MB
 
 # Help message
 help_message=$(cat << EOF
@@ -10,9 +11,10 @@ Usage: video-bitrate [OPTIONS] [DIRECTORY]
 Find video files in a given directory based on their bitrate.
 
 Options:
-  -th [bitrate]   Set the bitrate threshold in kbps. Files with a bitrate above this value will be displayed. Default is $default_bitrate_threshold.
-  -top [percent]  Display the top X percent of files based on bitrate. Default is $default_percentage.
-  -h, --help      Display this help message and exit.
+  -th [bitrate]    Set the bitrate threshold in kbps. Files with a bitrate above this value will be displayed. Default is $default_bitrate_threshold.
+  -top [percent]   Display the top X percent of files based on bitrate. Default is $default_percentage.
+  -size [size]     Set the minimum file size in MB. Files above this size will be displayed. Default is $default_file_size_threshold.
+  -h, --help       Display this help message and exit.
 
 If no options are provided, the script operates in the current directory and uses default values for options.
 EOF
@@ -34,30 +36,37 @@ get_file_size() {
     stat --printf="%s" "$1"
 }
 
-# Function to find videos above a bitrate threshold
+# Function to find videos above a bitrate threshold and file size
 find_above_threshold() {
     threshold_bitrate="$1"
-    local -n _result=$2
+    threshold_file_size=$(($2 * 1024 * 1024)) # Convert MB to bytes
+    local -n _result=$3
     while IFS= read -r -d '' file; do
-        bitrate=$(get_bitrate "$file")
-        if [[ "$bitrate" -ge "$threshold_bitrate" ]]; then
-            file_size=$(get_file_size "$file")
-            relative_path="${file#$search_dir/}"
-            _result["$relative_path"]=$bitrate:$file_size
+        file_size=$(get_file_size "$file")
+        if [[ "$file_size" -ge "$threshold_file_size" ]]; then
+            bitrate=$(get_bitrate "$file")
+            if [[ "$bitrate" -ge "$threshold_bitrate" ]]; then
+                relative_path="${file#$search_dir/}"
+                _result["$relative_path"]=$bitrate:$file_size
+            fi
         fi
     done < <(find "$search_dir" -type f \( -name "*.mp4" -o -name "*.mkv" -o -name "*.avi" -o -name "*.mov" \) -print0)
 }
 
-# Function to find top X% bitrate videos
+# Function to find top X% bitrate videos with a file size filter
 find_top_percentage() {
     percentage="$1"
-    local -n _result=$2
+    threshold_file_size=$(($2 * 1024 * 1024)) # Convert MB to bytes
+    local -n _result=$3
     declare -A file_bitrates
     video_files=()
 
     # Collect video files
     while IFS= read -r -d '' file; do
-        video_files+=("$file")
+        file_size=$(get_file_size "$file")
+        if [[ "$file_size" -ge "$threshold_file_size" ]]; then
+            video_files+=("$file")
+        fi
     done < <(find "$search_dir" -type f \( -name "*.mp4" -o -name "*.mkv" -o -name "*.avi" -o -name "*.mov" \) -print0)
 
     # Get bitrates of all files and store in an associative array
@@ -85,6 +94,7 @@ find_top_percentage() {
 # Parse arguments
 bitrate_threshold=""
 percentage=""
+file_size_threshold=""
 search_dir="$(pwd)"
 
 while [[ $# -gt 0 ]]; do
@@ -100,6 +110,11 @@ while [[ $# -gt 0 ]]; do
             shift # past argument
             shift # past value
             ;;
+        -size)
+            file_size_threshold="$2"
+            shift # past argument
+            shift # past value
+            ;;
         -h|--help)
             echo "$help_message"
             exit 0
@@ -112,9 +127,10 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Apply default values if neither argument is provided
-if [[ -z $bitrate_threshold ]] && [[ -z $percentage ]]; then
+if [[ -z $bitrate_threshold ]] && [[ -z $percentage ]] && [[ -z $file_size_threshold ]]; then
     bitrate_threshold=$default_bitrate_threshold
     percentage=$default_percentage
+    file_size_threshold=$default_file_size_threshold
 fi
 
 # Ensure search_dir has a trailing slash for correct relative path calculation
@@ -125,13 +141,17 @@ declare -A top_percentage
 declare -A result
 
 # Find files above threshold if specified
-if [[ -n $bitrate_threshold ]]; then
-    find_above_threshold "$bitrate_threshold" above_threshold
+if [[ -n $bitrate_threshold ]] && [[ -n $file_size_threshold ]]; then
+    find_above_threshold "$bitrate_threshold" "$file_size_threshold" above_threshold
+elif [[ -n $bitrate_threshold ]]; then
+    find_above_threshold "$bitrate_threshold" $default_file_size_threshold above_threshold
 fi
 
 # Find top percentage if specified
-if [[ -n $percentage ]]; then
-    find_top_percentage "$percentage" top_percentage
+if [[ -n $percentage ]] && [[ -n $file_size_threshold ]]; then
+    find_top_percentage "$percentage" "$file_size_threshold" top_percentage
+elif [[ -n $percentage ]]; then
+    find_top_percentage "$percentage" $default_file_size_threshold top_percentage
 fi
 
 # Combine results if both options were used, otherwise use what was found
