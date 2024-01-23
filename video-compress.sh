@@ -7,8 +7,8 @@ DEFAULT_BUFSIZE="56000k"
 
 # Function to display usage instructions
 show_help() {
-    echo "Usage: $0 <video file> [-s <target size in MB> | -b <target bitrate in Kb/s> | -c <codec> | -m <mode> | -r <rate mode> | -height <height> | -width <width> | --cpu-only]"
-    echo "       $0 -h|--help"
+    echo "Usage: video-compress <video file> [-s <target size in MB> | -b <target bitrate in Kb/s> | -c <codec> | -m <mode> | -r <rate mode> | -height <height> | -width <width> | --cpu-only]"
+    echo "       video-compress -h|--help"
     echo
     echo "Options:"
     echo "  -h, --help      Show this help message and exit."

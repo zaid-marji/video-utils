@@ -2,6 +2,7 @@ This collection contains two applications:
 
 1. `video-split-scenes`: An application that splits videos into scenes by detecting black frames that usually indicates transitions between scenes. It uses ffmpeg as a backend.
 2. `video-compress`: An application that compresses videos by re-enconding them with a specified target bitrate or target file size. By default it targets a bitrate of 5.6 Mbps. If the video height exceeds 2800 px, it will be rescaled to height of 2160 px while maintaining aspect ratio.
+3. `video-bitrate`: An application that finds videos based on their bitrate. By default it displays files in the top 2% bitrate with a bitrate above 9.2 Mbps in the current working directory.
 
 # video-split-scenes
 
@@ -32,4 +33,16 @@ video-compress [-c $codec] [-b $bitrate] [-s $filesize] [-m $encodemode] [-r $ra
 Get help:
 ```sh
 video-compress -h
+```
+
+# video-bitrate
+
+Usage:
+```sh
+video-bitrate [-th $bitrate] [-top $percent] $dir
+```
+
+Get help:
+```sh
+video-bitrate -h
 ```
