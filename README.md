@@ -16,6 +16,11 @@ If the output contains scenes that should be merged:
 video-split-scenes [--duration $d] [--pix_th $pix_th] [--pic_th $pic_th] [--merge $merge_scenes] $file
 ```
 
+If the default time limits need modification:
+```sh
+video-split-scenes [--duration $d] [--pix_th $pix_th] [--pic_th $pic_th] [--scene_limit $min_scene_duration] [--intro_limit $max_intro_duration] $file
+```
+
 Get help:
 ```sh
 video-split-scenes -h

@@ -26,8 +26,8 @@ def find_nearest_keyframe(keyframes, transition_start, transition_end):
         transition_start: The start of the transition.
         transition_end: The end of the transition.
     """
-
-    midpoint = (start + end) / 2
+    
+    midpoint = (transition_start + transition_end) / 2
     before_midpoint = [kf for kf in keyframes if kf <= midpoint]
     after_midpoint = [kf for kf in keyframes if kf >= midpoint]
 
@@ -56,7 +56,7 @@ def find_nearest_keyframe(keyframes, transition_start, transition_end):
     if nearest_after <= transition_end:
         return nearest_after
     
-    # Check if the distance to the nearest keyframe from both sides is the close
+    # Check if the distance to the nearest keyframe from both sides is close
     if abs((midpoint - nearest_before) - (nearest_after - midpoint)) <= 0.5:
         return nearest_before
     
@@ -67,8 +67,8 @@ def find_nearest_keyframe(keyframes, transition_start, transition_end):
         return nearest_after
 
 
-# Parse the merge scenes input
 def parse_merge_scenes(input_str):
+    """Parse input string for scene merge specifications."""
     if not input_str:
         return []
     scene_ranges = input_str.split(',')
@@ -79,8 +79,8 @@ def parse_merge_scenes(input_str):
     return merge_list
 
 
-# Helper function to check if a scene should be merged
 def should_merge(scene_number):
+    """Check if a scene should be merged based on the current scene number."""
     for start, end in merge_scenes:
         if start <= scene_number < end:
             return True
@@ -94,6 +94,8 @@ parser.add_argument("--duration", type=float, default=0.5, help="Minimum duratio
 parser.add_argument("--pic_th", type=float, default=0.98, help="Picture black ratio threshold for black frame detection, representing the minimum percentage of pixels that are considered black for the entire picture to be considered black (0-1, default: 0.98). Higher values require more pixels to be black to be considered a black frame.")
 parser.add_argument("--pix_th", type=float, default=0.2, help="Pixel threshold for black frame detection, representing the maximum brightness level (0-1, default: 0.2). Lower values require each pixel to be less bright to be considered black.")
 parser.add_argument("--merge", type=str, help="Specify scenes to merge in the format '3-5,6-7'.")
+parser.add_argument("--scene_limit", type=int, default=300, help="Minimum scene length in seconds (default: 300s).")
+parser.add_argument("--intro_limit", type=int, default=120, help="Upper time limit for the introduction in seconds (default: 120s).")
 args = parser.parse_args()
 
 video_file = args.video_file
@@ -101,9 +103,8 @@ duration = args.duration
 pic_th = args.pic_th
 pix_th = args.pix_th
 merge_scenes = parse_merge_scenes(args.merge)
-
-min_scene_duration = 300  # Minimum duration for a scene in seconds (5 minutes)
-intro_time_limit = 300    # Time limit for the intro in seconds (5 minutes)
+min_scene_duration = args.scene_limit       # Minimum duration for a scene in seconds (default: 5 minutes)
+intro_time_limit = args.intro_limit         # Maximum duration for the intro in seconds (default: 2 minutes)
 
 # Extract the file extension
 _, file_extension = os.path.splitext(video_file)
