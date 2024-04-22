@@ -44,7 +44,7 @@ video-compress -h
 
 Usage:
 ```sh
-video-bitrate [-th $bitrate] [-top $percent] [-size $size] $dir
+video-bitrate [-th $bitrate] [-top $percent] [-size $size] [-target $target] [-order $criteria] [-savings $savings] $dir
 ```
 
 Get help:
