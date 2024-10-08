@@ -95,7 +95,7 @@ parser.add_argument("--pic_th", type=float, default=0.98, help="Picture black ra
 parser.add_argument("--pix_th", type=float, default=0.2, help="Pixel threshold for black frame detection, representing the maximum brightness level (0-1, default: 0.2). Lower values require each pixel to be less bright to be considered black.")
 parser.add_argument("--merge", type=str, help="Specify scenes to merge in the format '3-5,6-7'.")
 parser.add_argument("--scene_limit", type=int, default=300, help="Minimum scene length in seconds (default: 300s).")
-parser.add_argument("--intro_limit", type=int, default=120, help="Upper time limit for the introduction in seconds (default: 120s).")
+parser.add_argument("--intro_limit", type=int, default=180, help="Upper time limit for the introduction in seconds (default: 180s).")
 args = parser.parse_args()
 
 video_file = args.video_file
