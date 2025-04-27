@@ -1,8 +1,9 @@
-This collection contains two applications:
+This collection contains the following applications:
 
 1. `video-split-scenes`: An application that splits videos into scenes by detecting black frames that usually indicates transitions between scenes. It uses ffmpeg as a backend.
 2. `video-compress`: An application that compresses videos by re-enconding them with a specified target bitrate or target file size. By default it targets a bitrate of 5.6 Mbps. If the video height exceeds 2800 px, it will be rescaled to height of 2160 px while maintaining aspect ratio.
 3. `video-bitrate`: An application that finds videos based on their bitrate. By default it displays files in the top 2% bitrate with a bitrate above 9.2 Mbps in the current working directory.
+4. `video-join`: An application that joins videos together. It uses ffmpeg as a backend. It can join videos with different codecs, but the output will be in the codec of the first video. The output will be in the same directory as the first video.
 
 # video-split-scenes
 
@@ -50,4 +51,14 @@ video-bitrate [-th $bitrate] [-top $percent] [-size $size] [-target $target] [-o
 Get help:
 ```sh
 video-bitrate -h
+```
+
+# video-join
+Usage:
+```sh
+video-join $files [-o $output]
+```
+Get help:
+```sh
+video-join -h
 ```
