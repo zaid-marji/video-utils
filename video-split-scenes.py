@@ -97,6 +97,8 @@ parser.add_argument("--merge", type=str, help="Specify scenes to merge in the fo
 parser.add_argument("--scene_limit", type=int, default=300, help="Minimum scene length in seconds (default: 300s).")
 parser.add_argument("--intro_limit", type=int, default=180, help="Upper time limit for the introduction in seconds (default: 180s).")
 parser.add_argument("--white", action="store_true", help="Detect white frames instead of black frames for scene transitions.")
+parser.add_argument("--defer", action="store_true", help="Defer splitting by using the last valid transition in a cluster instead of the first. A cluster is a group of consecutive transitions where gaps between them are less than --scene_limit.")
+parser.add_argument("--debug", action="store_true", help="Print debug information about detected transitions and split points.")
 args = parser.parse_args()
 
 video_file = args.video_file
@@ -107,6 +109,8 @@ merge_scenes = parse_merge_scenes(args.merge)
 min_scene_duration = args.scene_limit       # Minimum duration for a scene in seconds (default: 5 minutes)
 intro_time_limit = args.intro_limit         # Maximum duration for the intro in seconds (default: 2 minutes)
 detect_white = args.white                   # Detect white frames instead of black frames
+defer_mode = args.defer                     # Split at last matching transition instead of first
+debug_mode = args.debug                     # Print debug information
 
 # Extract the file extension
 _, file_extension = os.path.splitext(video_file)
@@ -130,8 +134,16 @@ keyframes = sorted(set(float(match) for match in re.findall(keyframe_pattern, ke
 
 # Find black frame ranges and sort them
 black_frames = re.findall(r'black_start:(\d+\.?\d+).*?black_end:(\d+\.?\d+)', black_frames_output)
-black_frames = map(lambda x: (float(x[0]), float(x[1])), black_frames)
+black_frames = [(float(x[0]), float(x[1])) for x in black_frames]
 black_frames = sorted(black_frames, key=lambda x: x[0])
+
+# Debug: print all detected transitions
+if debug_mode:
+    print(f"\nDetected {len(black_frames)} transitions:")
+    for i, (start, end) in enumerate(black_frames):
+        kf = find_nearest_keyframe(keyframes, start, end)
+        print(f"  {i+1}. {start:.2f}s - {end:.2f}s (keyframe: {kf:.2f}s)" if kf else f"  {i+1}. {start:.2f}s - {end:.2f}s (no keyframe)")
+    print()
 
 # Determine the end of the intro
 intro_end = 0.0
@@ -150,28 +162,81 @@ if intro_end > 0:
     subprocess.run(ffmpeg_intro_cmd)
 
 # Process each scene
-scene_start = intro_end
-scene_number = 1
-premerge_start = intro_end
-premerge_scene_number = 1
+# First pass: collect ALL valid keyframe transitions (not filtered by min_scene_duration yet)
+all_transitions = []
 for start, end in black_frames:
     scene_end = find_nearest_keyframe(keyframes, start, end)
-    duration = scene_end - scene_start
-    premerge_duration = scene_end - premerge_start
+    if scene_end and scene_end > intro_end:
+        all_transitions.append(scene_end)
 
-    if scene_end and premerge_duration >= min_scene_duration:
-        if should_merge(premerge_scene_number):
-            premerge_start = scene_end
+# Debug: print all transitions
+if debug_mode:
+    print(f"All valid transitions after intro ({len(all_transitions)}): {[f'{t:.2f}s' for t in all_transitions]}")
+
+# Second pass: determine split points based on mode
+split_points = []
+current_start = intro_end
+premerge_scene_number = 1
+
+if defer_mode:
+    # Greedy: for each "long enough" segment, find the LAST transition before the next long gap
+    i = 0
+    while i < len(all_transitions):
+        # Find all transitions that are reachable from current_start
+        # (i.e., form a cluster where gaps between consecutive ones are < min_scene_duration)
+        cluster_end_idx = i
+        
+        # First, check if this transition is far enough from current_start
+        if all_transitions[i] - current_start >= min_scene_duration:
+            # Find the last transition in this cluster
+            j = i
+            while j < len(all_transitions) - 1:
+                gap_to_next = all_transitions[j + 1] - all_transitions[j]
+                if gap_to_next < min_scene_duration:
+                    j += 1
+                else:
+                    break
+            
+            # Use the last transition in the cluster
+            if should_merge(premerge_scene_number):
+                current_start = all_transitions[j]
+                premerge_scene_number += 1
+            else:
+                split_points.append(all_transitions[j])
+                current_start = all_transitions[j]
+                premerge_scene_number += 1
+            i = j + 1
+        else:
+            i += 1
+else:
+    # Non-greedy: use the FIRST transition that meets min_scene_duration
+    for t in all_transitions:
+        if t - current_start >= min_scene_duration:
+            if should_merge(premerge_scene_number):
+                current_start = t
+                premerge_scene_number += 1
+                continue
+            split_points.append(t)
+            current_start = t
             premerge_scene_number += 1
-            continue
-        output_file = f'Scene {scene_number}{file_extension}'
-        print(f"Processing scene {scene_number} (starts at {scene_start}s, ends at {scene_end}s)...")
-        ffmpeg_scene_cmd = ['ffmpeg', '-ss', str(scene_start), '-i', video_file, '-t', str(duration), '-c', 'copy', output_file]
-        subprocess.run(ffmpeg_scene_cmd)
-        scene_start = scene_end
-        premerge_start = scene_end
-        scene_number += 1
-        premerge_scene_number += 1
+
+# Debug: print split points
+if debug_mode:
+    print(f"Final split points ({len(split_points)}): {[f'{s:.2f}s' for s in split_points]}")
+    print()
+
+# Second pass: output scenes using the split points
+scene_start = intro_end
+scene_number = 1
+
+for scene_end in split_points:
+    duration = scene_end - scene_start
+    output_file = f'Scene {scene_number}{file_extension}'
+    print(f"Processing scene {scene_number} (starts at {scene_start}s, ends at {scene_end}s)...")
+    ffmpeg_scene_cmd = ['ffmpeg', '-ss', str(scene_start), '-i', video_file, '-t', str(duration), '-c', 'copy', output_file]
+    subprocess.run(ffmpeg_scene_cmd)
+    scene_start = scene_end
+    scene_number += 1
 
 # Process the ending
 end_time = float(run_command(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', video_file]))  # Get the duration of the video
