@@ -27,9 +27,10 @@ To detect white frames instead of black frames:
 video-split-scenes --white $file
 ```
 
-To defer splitting by using the last valid transition in a cluster instead of the first (a cluster is a group of consecutive transitions where gaps between them are less than --scene_limit):
+To defer splitting by using the last valid transition within a time window of the first valid split point (default 30s):
 ```sh
 video-split-scenes --defer $file
+video-split-scenes --defer --defer_limit 60 $file
 ```
 
 Get help:

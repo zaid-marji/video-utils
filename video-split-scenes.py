@@ -97,7 +97,8 @@ parser.add_argument("--merge", type=str, help="Specify scenes to merge in the fo
 parser.add_argument("--scene_limit", type=int, default=300, help="Minimum scene length in seconds (default: 300s).")
 parser.add_argument("--intro_limit", type=int, default=180, help="Upper time limit for the introduction in seconds (default: 180s).")
 parser.add_argument("--white", action="store_true", help="Detect white frames instead of black frames for scene transitions.")
-parser.add_argument("--defer", action="store_true", help="Defer splitting by using the last valid transition in a cluster instead of the first. A cluster is a group of consecutive transitions where gaps between them are less than --scene_limit.")
+parser.add_argument("--defer", action="store_true", help="Defer splitting by using the last valid transition within --defer_limit seconds of the first valid split point.")
+parser.add_argument("--defer_limit", type=int, default=30, help="Maximum extension (in seconds) from the first valid split point when using --defer (default: 30s).")
 parser.add_argument("--debug", action="store_true", help="Print debug information about detected transitions and split points.")
 args = parser.parse_args()
 
@@ -110,7 +111,12 @@ min_scene_duration = args.scene_limit       # Minimum duration for a scene in se
 intro_time_limit = args.intro_limit         # Maximum duration for the intro in seconds (default: 2 minutes)
 detect_white = args.white                   # Detect white frames instead of black frames
 defer_mode = args.defer                     # Split at last matching transition instead of first
+defer_limit = args.defer_limit              # Maximum extension from first valid split point
 debug_mode = args.debug                     # Print debug information
+
+# Validate argument combinations
+if defer_limit != 30 and not defer_mode:
+    parser.error("--defer_limit requires --defer to be specified")
 
 # Extract the file extension
 _, file_extension = os.path.splitext(video_file)
@@ -179,25 +185,21 @@ current_start = intro_end
 premerge_scene_number = 1
 
 if defer_mode:
-    # Greedy: for each "long enough" segment, find the LAST transition before the next long gap
+    # Defer: for each "long enough" segment, find the LAST transition within defer_limit of the first valid split
     i = 0
     while i < len(all_transitions):
-        # Find all transitions that are reachable from current_start
-        # (i.e., form a cluster where gaps between consecutive ones are < min_scene_duration)
-        cluster_end_idx = i
-        
         # First, check if this transition is far enough from current_start
         if all_transitions[i] - current_start >= min_scene_duration:
-            # Find the last transition in this cluster
+            first_valid_split = all_transitions[i]
+            # Find the last transition within defer_limit of the first valid split
             j = i
             while j < len(all_transitions) - 1:
-                gap_to_next = all_transitions[j + 1] - all_transitions[j]
-                if gap_to_next < min_scene_duration:
+                if all_transitions[j + 1] - first_valid_split <= defer_limit:
                     j += 1
                 else:
                     break
             
-            # Use the last transition in the cluster
+            # Use the last transition within the limit
             if should_merge(premerge_scene_number):
                 current_start = all_transitions[j]
                 premerge_scene_number += 1
