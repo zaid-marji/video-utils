@@ -96,6 +96,7 @@ parser.add_argument("--pix_th", type=float, default=0.2, help="Pixel threshold f
 parser.add_argument("--merge", type=str, help="Specify scenes to merge in the format '3-5,6-7'.")
 parser.add_argument("--scene_limit", type=int, default=300, help="Minimum scene length in seconds (default: 300s).")
 parser.add_argument("--intro_limit", type=int, default=180, help="Upper time limit for the introduction in seconds (default: 180s).")
+parser.add_argument("--white", action="store_true", help="Detect white frames instead of black frames for scene transitions.")
 args = parser.parse_args()
 
 video_file = args.video_file
@@ -105,13 +106,17 @@ pix_th = args.pix_th
 merge_scenes = parse_merge_scenes(args.merge)
 min_scene_duration = args.scene_limit       # Minimum duration for a scene in seconds (default: 5 minutes)
 intro_time_limit = args.intro_limit         # Maximum duration for the intro in seconds (default: 2 minutes)
+detect_white = args.white                   # Detect white frames instead of black frames
 
 # Extract the file extension
 _, file_extension = os.path.splitext(video_file)
 
-# Detect black frames using ffmpeg
-print("Detecting black frames, please wait...")
-ffmpeg_detect_cmd = ['ffmpeg', '-i', video_file, '-vf', f'blackdetect=d={duration}:pic_th={pic_th}:pix_th={pix_th}', '-an', '-f', 'rawvideo', '-y', '/dev/null']
+# Detect black/white frames using ffmpeg
+# For white frame detection, we negate the video first so white becomes black
+frame_type = "white" if detect_white else "black"
+print(f"Detecting {frame_type} frames, please wait...")
+vf_filter = f'{"negate," if detect_white else ""}blackdetect=d={duration}:pic_th={pic_th}:pix_th={pix_th}'
+ffmpeg_detect_cmd = ['ffmpeg', '-i', video_file, '-vf', vf_filter, '-an', '-f', 'rawvideo', '-y', '/dev/null']
 black_frames_output = run_command(ffmpeg_detect_cmd)
 
 # Detect keyframes using ffprobe

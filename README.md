@@ -22,6 +22,11 @@ If the default time limits need modification:
 video-split-scenes [--duration $d] [--pix_th $pix_th] [--pic_th $pic_th] [--scene_limit $min_scene_duration] [--intro_limit $max_intro_duration] $file
 ```
 
+To detect white frames instead of black frames:
+```sh
+video-split-scenes --white $file
+```
+
 Get help:
 ```sh
 video-split-scenes -h
