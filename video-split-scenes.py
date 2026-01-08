@@ -64,8 +64,8 @@ def run_command(cmd):
         return ""
 
 
-def refine_long_segment(video_file, start_time, end_time, duration_th, pic_th, pix_th, max_duration, debug_mode):
-    """Refine a long black segment by trying a stricter pic_th value.
+def refine_long_segment(video_file, start_time, end_time, duration_th, pic_th, pix_th, max_duration, detect_white, debug_mode):
+    """Refine a long black/white segment by trying a stricter pic_th value.
     
     Goal: Find segments shorter than max_duration.
     Returns a list of refined (start, end) tuples, or the original segment if no refinement possible.
@@ -83,9 +83,11 @@ def refine_long_segment(video_file, start_time, end_time, duration_th, pic_th, p
         print(f"    Trying stricter threshold: pic_th={test_th}")
     
     # Run blackdetect on the segment with buffer
+    # For white frame detection, use negate filter
+    vf_filter = f'{"negate," if detect_white else ""}blackdetect=d={duration_th}:pic_th={test_th}:pix_th={pix_th}'
     cmd = [
         'ffmpeg', '-ss', str(analysis_start), '-i', video_file, '-t', str(analysis_duration),
-        '-vf', f'blackdetect=d={duration_th}:pic_th={test_th}:pix_th={pix_th}',
+        '-vf', vf_filter,
         '-an', '-f', 'rawvideo', '-y', '/dev/null'
     ]
     output = run_command(cmd)
@@ -236,7 +238,7 @@ if auto_adjust_enabled:
         if segment_duration > max_duration:
             if debug_mode:
                 print(f"  Long segment detected: {start:.2f}s - {end:.2f}s ({segment_duration:.2f}s)")
-            adjusted = refine_long_segment(video_file, start, end, duration, pic_th, pix_th, max_duration, debug_mode)
+            adjusted = refine_long_segment(video_file, start, end, duration, pic_th, pix_th, max_duration, detect_white, debug_mode)
             # Check if adjustment actually changed something
             if adjusted != [(start, end)]:
                 adjustments_made = True
