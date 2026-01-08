@@ -160,13 +160,6 @@ for start, end in black_frames:
     else:
         break
 
-# Process intro if it exists
-if intro_end > 0:
-    print(f"Processing intro (ends at {intro_end}s)...")
-    output_file = f'Intro{file_extension}'
-    ffmpeg_intro_cmd = ['ffmpeg', '-ss', '0', '-i', video_file, '-t', str(intro_end), '-c', 'copy', output_file]
-    subprocess.run(ffmpeg_intro_cmd)
-
 # Process each scene
 # First pass: collect ALL valid keyframe transitions (not filtered by min_scene_duration yet)
 all_transitions = []
@@ -226,6 +219,13 @@ else:
 if debug_mode:
     print(f"Final split points ({len(split_points)}): {[f'{s:.2f}s' for s in split_points]}")
     print()
+
+# Process intro if it exists
+if intro_end > 0:
+    print(f"Processing intro (ends at {intro_end}s)...")
+    output_file = f'Intro{file_extension}'
+    ffmpeg_intro_cmd = ['ffmpeg', '-ss', '0', '-i', video_file, '-t', str(intro_end), '-c', 'copy', output_file]
+    subprocess.run(ffmpeg_intro_cmd)
 
 # Second pass: output scenes using the split points
 scene_start = intro_end
