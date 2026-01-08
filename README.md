@@ -33,6 +33,13 @@ video-split-scenes --defer $file
 video-split-scenes --defer --defer_limit 60 $file
 ```
 
+Long black segments (>3s by default) are automatically analyzed and adjusted to detect the actual black frame boundaries. This helps when a short black frame is followed by dim content (like credits) that gets merged into one long detection. To adjust or disable:
+```sh
+video-split-scenes --max_duration 5 $file
+video-split-scenes --max_duration 0 $file
+video-split-scenes --disable_auto_adjust $file
+```
+
 Get help:
 ```sh
 video-split-scenes -h
