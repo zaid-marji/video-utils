@@ -333,15 +333,18 @@ if debug_mode:
     print(f"Final split points ({len(split_points)}): {[f'{s:.2f}s' for s in split_points]}")
     print()
 
-# Process intro if it exists
-if intro_end > 0:
+# Check if intro should be merged with scene 1
+merge_intro = should_merge(0)
+
+# Process intro if it exists and shouldn't be merged
+if intro_end > 0 and not merge_intro:
     print(f"Processing intro (ends at {intro_end}s)...")
     output_file = f'Intro{file_extension}'
     ffmpeg_intro_cmd = ['ffmpeg', '-ss', '0', '-i', video_file, '-t', str(intro_end), '-c', 'copy', output_file]
     subprocess.run(ffmpeg_intro_cmd)
 
 # Second pass: output scenes using the split points
-scene_start = intro_end
+scene_start = 0 if merge_intro else intro_end
 scene_number = 1
 
 for scene_end in split_points:
