@@ -65,7 +65,7 @@ def run_command(cmd):
 
 
 def refine_long_segment(video_file, start_time, end_time, duration_th, pic_th, pix_th, max_duration, detect_white, debug_mode):
-    """Refine a long black/white segment by trying a stricter pic_th value.
+    """Refine a long black/white segment by trying stricter pic_th values.
     
     Goal: Find segments shorter than max_duration.
     Returns a list of refined (start, end) tuples, or the original segment if no refinement possible.
@@ -76,59 +76,66 @@ def refine_long_segment(video_file, start_time, end_time, duration_th, pic_th, p
     analysis_start = max(0, start_time - 0.5)
     analysis_duration = segment_duration + 1.0  # Add buffer at end too
     
-    # Try midpoint between current pic_th and 1.0
-    test_th = round((pic_th + 1.0) / 2, 4)
-    
-    if debug_mode:
-        print(f"    Trying stricter threshold: pic_th={test_th}")
-    
-    # Run blackdetect on the segment with buffer
-    # For white frame detection, use negate filter
-    vf_filter = f'{"negate," if detect_white else ""}blackdetect=d={duration_th}:pic_th={test_th}:pix_th={pix_th}'
-    cmd = [
-        'ffmpeg', '-ss', str(analysis_start), '-i', video_file, '-t', str(analysis_duration),
-        '-vf', vf_filter,
-        '-an', '-f', 'rawvideo', '-y', '/dev/null'
-    ]
-    output = run_command(cmd)
-    
-    # Parse refined black frames
-    refined_frames = re.findall(r'black_start:(\d+\.?\d+).*?black_end:(\d+\.?\d+)', output)
-    
-    if not refined_frames:
+    # Try up to 2 increasingly strict thresholds
+    current_th = pic_th
+    for attempt in range(2):
+        test_th = round((current_th + 1.0) / 2, 4)
+        
         if debug_mode:
-            print(f"      No detections (too strict), keeping original")
-        return [(start_time, end_time)]
-    
-    # Adjust timestamps to absolute time and filter to original segment range
-    refined = []
-    for s, e in refined_frames:
-        abs_start = analysis_start + float(s)
-        abs_end = analysis_start + float(e)
-        # Only include segments that overlap with original range
-        if abs_end > start_time and abs_start < end_time:
-            # Clamp to original range
-            abs_start = max(abs_start, start_time)
-            abs_end = min(abs_end, end_time)
-            refined.append((abs_start, abs_end))
-    
-    if not refined:
-        if debug_mode:
-            print(f"      No segments in original range, keeping original")
-        return [(start_time, end_time)]
-    
-    # Filter: only keep segments shorter than max_duration
-    short_segments = [(s, e) for s, e in refined if (e - s) < max_duration]
-    
-    if short_segments:
-        if debug_mode:
-            print(f"      Found {len(short_segments)} short segment(s): {[(f'{s:.2f}', f'{e:.2f}') for s, e in short_segments]}")
-        return short_segments
-    else:
+            print(f"    Trying stricter threshold (attempt {attempt + 1}): pic_th={test_th}")
+        
+        # Run blackdetect on the segment with buffer
+        vf_filter = f'{"negate," if detect_white else ""}blackdetect=d={duration_th}:pic_th={test_th}:pix_th={pix_th}'
+        cmd = [
+            'ffmpeg', '-ss', str(analysis_start), '-i', video_file, '-t', str(analysis_duration),
+            '-vf', vf_filter,
+            '-an', '-f', 'rawvideo', '-y', '/dev/null'
+        ]
+        output = run_command(cmd)
+        
+        # Parse refined black frames
+        refined_frames = re.findall(r'black_start:(\d+\.?\d+).*?black_end:(\d+\.?\d+)', output)
+        
+        if not refined_frames:
+            if debug_mode:
+                print(f"      No detections (too strict), keeping original")
+            return [(start_time, end_time)]
+        
+        # Adjust timestamps to absolute time and filter to original segment range
+        refined = []
+        for s, e in refined_frames:
+            abs_start = analysis_start + float(s)
+            abs_end = analysis_start + float(e)
+            # Only include segments that overlap with original range
+            if abs_end > start_time and abs_start < end_time:
+                # Clamp to original range
+                abs_start = max(abs_start, start_time)
+                abs_end = min(abs_end, end_time)
+                refined.append((abs_start, abs_end))
+        
+        if not refined:
+            if debug_mode:
+                print(f"      No segments in original range, keeping original")
+            return [(start_time, end_time)]
+        
+        # Filter: only keep segments shorter than max_duration
+        short_segments = [(s, e) for s, e in refined if (e - s) < max_duration]
+        
+        if short_segments:
+            if debug_mode:
+                print(f"      Found {len(short_segments)} short segment(s): {[(f'{s:.2f}', f'{e:.2f}') for s, e in short_segments]}")
+            return short_segments
+        
+        # No short segments found, try stricter threshold
         if debug_mode:
             durations = [f"{e-s:.2f}s" for s, e in refined]
-            print(f"      All {len(refined)} segment(s) too long: {durations}, keeping original")
-        return [(start_time, end_time)]
+            print(f"      All {len(refined)} segment(s) too long: {durations}")
+        
+        current_th = test_th
+    
+    if debug_mode:
+        print(f"      Keeping original after {attempt + 1} attempts")
+    return [(start_time, end_time)]
 
 
 def find_nearest_keyframe(keyframes, transition_start, transition_end):
