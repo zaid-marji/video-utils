@@ -17,9 +17,36 @@ def parse_merge_scenes(input_str):
 
 
 # Set up argument parser
-parser = argparse.ArgumentParser(description="Video Scene Splitter with Keyframe Detection")
+troubleshooting = """
+Troubleshooting:
+  Credits split between two scenes:
+    Make detection stricter: increase picture black ratio threshold (e.g., --pic_th 0.99)
+  
+  Credits at beginning of scene instead of end:
+    Use --defer to split at the last transition in a cluster
+  
+  Transitions are white instead of black:
+    Use --white flag
+  
+  Part of intro included in first scene:
+    Increase upper time limit for the introduction if intro is longer than 3 minutes (e.g., --intro_limit 300)
+    Or use --merge 0-1 to include intro in scene 1
+  
+  Multiple scenes joined together (missing splits):
+    Make detection more lenient: reduce minimum duration of black segments (e.g., --duration 0.2)
+  
+  One scene split into multiple scenes (too many splits):
+    Make detection stricter: increase --duration or --pic_th, or decrease --pix_th
+    Or merge scenes to combine specific scenes (e.g., --merge 3-5)
+"""
+
+parser = argparse.ArgumentParser(
+    description="Video Scene Splitter with Keyframe Detection",
+    epilog=troubleshooting,
+    formatter_class=argparse.RawDescriptionHelpFormatter
+)
 parser.add_argument("video_file", help="Path to the input video file.")
-parser.add_argument("--duration", type=float, default=0.5, help="Minimum duration (in seconds) of a black scene to be considered a transition (default: 0.5s).")
+parser.add_argument("--duration", type=float, default=0.5, help="Minimum duration (in seconds) of a black segment to be considered a transition (default: 0.5s).")
 parser.add_argument("--pic_th", type=float, default=0.98, help="Picture black ratio threshold for black frame detection, representing the minimum percentage of pixels that are considered black for the entire picture to be considered black (0-1, default: 0.98). Higher values require more pixels to be black to be considered a black frame.")
 parser.add_argument("--pix_th", type=float, default=0.2, help="Pixel threshold for black frame detection, representing the maximum brightness level (0-1, default: 0.2). Lower values require each pixel to be less bright to be considered black.")
 parser.add_argument("--merge", type=str, help="Specify scenes to merge in the format '3-5,6-7'.")
