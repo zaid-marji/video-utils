@@ -105,6 +105,18 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# Identify the codec of the input video file, if a codec is not specified by the user
+CODEC=$USER_SPECIFIED_CODEC
+if [ -z "$CODEC" ]; then
+    CODEC=$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1 "$INPUT_VIDEO")
+fi
+
+# Check if the codec is supported; if not, fallback to libx265
+if ! [[ "$CODEC" =~ ^(libx264|libx265|h264|hevc|libsvtav1|av1)$ ]]; then
+    echo "Unsupported or unknown codec: $CODEC. Falling back to default codec libx265."
+    CODEC="libx265"
+fi
+
 # Check for Nvidia GPU
 NVIDIA_GPU=false
 NVIDIA_RTX_40_OR_NEWER=false
@@ -135,18 +147,6 @@ command -v ffprobe >/dev/null 2>&1 || error_exit "ffprobe is not installed."
 # Check if the input file exists and is a valid video file
 [ -f "$INPUT_VIDEO" ] || error_exit "Input file does not exist."
 
-# Identify the codec of the input video file, if a codec is not specified by the user
-CODEC=$USER_SPECIFIED_CODEC
-if [ -z "$CODEC" ]; then
-    CODEC=$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1 "$INPUT_VIDEO")
-fi
-
-# Check if the codec is supported; if not, fallback to libx265
-if ! [[ "$CODEC" =~ ^(libx264|libx265|h264|hevc|libsvtav1|av1)$ ]]; then
-    echo "Unsupported or unknown codec: $CODEC. Falling back to default codec libx265."
-    CODEC="libx265"
-fi
-
 # Upgrade to GPU-accelerated codec if available and not CPU only
 if [ "$HWACCEL" = true ]; then
     case "$CODEC" in
@@ -169,7 +169,7 @@ if [ -z "$MODE" ] && [ "$HEIGHT_OR_WIDTH_SPECIFIED" = false ]; then
 fi
 
 # Encoding settings based on mode, encoder, and encoding mode (CBR or VBR)
-if [[ "$CODEC" =~ ^(h264_nvenc|hevc_nvenc)$ ]]; then
+if [[ "$CODEC" =~ ^(h264_nvenc|hevc_nvenc|av1_nvenc)$ ]]; then
     # NVENC encoder presets
     NVENC_PRESET="p7"  # You can change this to p1 (fastest) to p7 (best quality)
     ENCODE_SETTINGS="-c:v $CODEC -preset $NVENC_PRESET"
