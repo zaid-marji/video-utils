@@ -111,7 +111,7 @@ NVIDIA_RTX_40_OR_NEWER=false
 if nvidia-smi -L > /dev/null 2>&1; then
     NVIDIA_GPU=true
     # Check for RTX 40 series or later
-    if nvidia-smi -L | grep -E 'RTX [4-9][0-9][0-9][0-9]' > /dev/null 2>&1; then
+    if nvidia-smi -L | grep -E 'RTX( PRO)? [4-9][0-9][0-9][0-9]' > /dev/null 2>&1; then
         NVIDIA_RTX_40_OR_NEWER=true
     fi
 fi
