@@ -14,8 +14,9 @@ show_help() {
     echo "  -h, --help      Show this help message and exit."
     echo "  -s              Specify target size in MB."
     echo "  -b              Specify target bitrate in Kb/s."
-    echo "  -c              Specify codec to use (Options: libx264 (h264), libx265 (hevc), libsvtav1 (av1))."
-    echo "                  If omitted, defaults to the same codec as the input or libx265 if codec is not supported."
+    echo "  -c              Specify codec to use (Options: libx264 (h264), libx265 (hevc), libsvtav1 (av1), input)."
+    echo "                  If omitted, defaults to libx265 (hevc) unless the input codec is av1."
+    echo "                  If set to input, uses the input codec (supported codecs only)."
     echo "                  Automatically upgrades to GPU-accelerated codec if available."
     echo "  -m              Specify encoding mode (cbr or vbr). Default is vbr."
     echo "  -r              Specify rate mode (average or maxrate). Default is average."
@@ -107,8 +108,20 @@ done
 
 # Identify the codec of the input video file, if a codec is not specified by the user
 CODEC=$USER_SPECIFIED_CODEC
-if [ -z "$CODEC" ]; then
-    CODEC=$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1 "$INPUT_VIDEO")
+if [ -z "$CODEC" ] || [ "$CODEC" = "input" ]; then
+    INPUT_CODEC=$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1 "$INPUT_VIDEO")
+    if [ "$CODEC" = "input" ]; then
+        case "$INPUT_CODEC" in
+            h264|hevc|av1 ) CODEC="$INPUT_CODEC";;
+            * ) error_exit "Codec input only supports input codecs: avc/h264, hevc, or av1.";;
+        esac
+    else
+        if [ "$INPUT_CODEC" = "av1" ]; then
+            CODEC="av1"
+        else
+            CODEC="libx265"
+        fi
+    fi
 fi
 
 # Check if the codec is supported; if not, fallback to libx265
